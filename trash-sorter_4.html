@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trash Sorter!</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Press Start 2P',monospace,sans-serif}
+#game{width:680px;height:620px;position:relative;overflow:hidden;background:#5BA3E0}
+#road{position:absolute;bottom:0;left:0;width:100%;height:220px;background:#5A5A5A}
+#road-line{position:absolute;bottom:110px;left:0;width:100%;height:6px;background:#F5C518;opacity:0.6}
+#sidewalk{position:absolute;bottom:200px;left:0;width:100%;height:28px;background:#C8B89A;border-top:4px solid #A0906A;border-bottom:4px solid #A0906A}
+#curb{position:absolute;bottom:196px;left:0;width:100%;height:8px;background:#9E8C74}
+#grass{position:absolute;bottom:228px;left:0;width:100%;height:40px;background:#5CB85C;border-top:4px solid #4A9A4A}
+#sky-bg{position:absolute;top:0;left:0;width:100%;height:268px;background:#5BA3E0}
+.cloud{position:absolute;background:#fff;border-radius:40px}
+#hud{position:absolute;top:0;left:0;width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;z-index:50;background:#1a0a00;border-bottom:4px solid #F5C518;pointer-events:none}
+.hud-val{color:#F5C518;font-size:9px;letter-spacing:1px}
+#pile-wrap{position:absolute;top:42px;left:50%;transform:translateX(-50%);width:180px;z-index:50;pointer-events:none;text-align:center}
+#pile-label{color:#fff;font-size:7px;background:#1a0a00;border:2px solid #F5C518;padding:3px 8px;display:inline-block;margin-bottom:3px}
+#pile-bar-bg{width:100%;height:12px;background:#1a0a00;border:2px solid #F5C518}
+#pile-bar{height:100%;width:0%;background:#E24B4A}
+.bin-wrap{position:absolute;bottom:68px;z-index:30;cursor:pointer;user-select:none}
+#bw-recycle{left:40px}
+#bw-trash{right:40px}
+.item-sprite{position:absolute;z-index:40;cursor:grab;user-select:none;display:flex;flex-direction:column;align-items:center;gap:1px}
+.item-sprite.grabbed{cursor:grabbing;z-index:90}
+.item-emoji{font-size:36px;line-height:1;display:block;filter:drop-shadow(2px 2px 0px #1a0a00)}
+.item-tag{font-size:6px;font-family:'Press Start 2P',monospace;color:#fff;background:#1a0a00;padding:2px 4px;border:1px solid #F5C518;white-space:nowrap;line-height:1.4}
+#truck-wrap{position:absolute;top:40px;right:-260px;z-index:20;transition:right 0.45s ease-in-out}
+#combo-pop{position:absolute;top:80px;left:50%;transform:translateX(-50%);color:#F5C518;font-size:10px;z-index:60;pointer-events:none;opacity:0;transition:opacity 0.2s;text-align:center;background:#1a0a00;padding:4px 10px;border:2px solid #F5C518;white-space:nowrap}
+.flash-ring{position:absolute;border-radius:50%;pointer-events:none;z-index:80;border:5px solid #fff;animation:ring 0.45s ease-out forwards}
+@keyframes ring{0%{transform:scale(0.4);opacity:1}100%{transform:scale(2.2);opacity:0}}
+#start-screen,#game-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1a0a00;z-index:100;gap:14px;padding:20px}
+#start-screen h1,#game-over h1{color:#F5C518;font-size:16px;text-align:center;line-height:1.8;border-bottom:3px solid #F5C518;padding-bottom:10px;width:100%;max-width:460px}
+.pb-p{color:#fff;font-size:8px;line-height:2.2;text-align:center;max-width:400px}
+.pb-btn{background:#E24B4A;color:#fff;border:3px solid #fff;padding:12px 24px;font-size:9px;cursor:pointer;font-family:'Press Start 2P',monospace;letter-spacing:1px}
+.pb-btn:hover{background:#F5C518;color:#1a0a00}
+.legend{display:flex;gap:20px;align-items:flex-start}
+.leg-col{display:flex;flex-direction:column;gap:6px;align-items:center}
+.leg-title{font-size:7px;padding:3px 8px;border:2px solid;font-family:'Press Start 2P',monospace}
+.leg-title.rec{color:#1D9E75;border-color:#1D9E75}
+.leg-title.tra{color:#888780;border-color:#888780}
+.leg-items{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:210px}
+.leg-item{display:flex;flex-direction:column;align-items:center;gap:2px}
+.leg-emoji{font-size:20px;line-height:1}
+.leg-name{font-size:5px;color:#aaa;font-family:'Press Start 2P',monospace;text-align:center}
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="sky-bg">
+    <div class="cloud" style="width:80px;height:28px;top:30px;left:60px"></div>
+    <div class="cloud" style="width:50px;height:20px;top:22px;left:100px"></div>
+    <div class="cloud" style="width:110px;height:30px;top:55px;left:300px"></div>
+    <div class="cloud" style="width:90px;height:26px;top:25px;left:560px"></div>
+  </div>
+  <div id="grass"></div>
+  <div id="sidewalk"></div>
+  <div id="curb"></div>
+  <div id="road"></div>
+  <div id="road-line"></div>
+  <div id="hud">
+    <div class="hud-val" id="score-display">SCORE 0</div>
+    <div class="hud-val" id="level-display">LVL 1</div>
+    <div class="hud-val" id="lives-display">LIVES ♥♥♥</div>
+  </div>
+  <div id="pile-wrap">
+    <div id="pile-label">PILE LEVEL</div>
+    <div id="pile-bar-bg"><div id="pile-bar"></div></div>
+  </div>
+  <div id="combo-pop"></div>
+
+  <div id="truck-wrap">
+    <svg width="260" height="90" viewBox="0 0 260 90">
+      <rect x="0" y="20" width="260" height="60" fill="#D85A30" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="0" y="10" width="72" height="70" fill="#EF9F27" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="8" y="18" width="30" height="22" fill="#85B7EB" stroke="#1a0a00" stroke-width="2"/>
+      <rect x="44" y="18" width="20" height="22" fill="#85B7EB" stroke="#1a0a00" stroke-width="2"/>
+      <rect x="72" y="22" width="178" height="54" fill="#BA7517" stroke="#1a0a00" stroke-width="2"/>
+      <rect x="78" y="27" width="166" height="44" fill="#9A5E0A" stroke="#1a0a00" stroke-width="1"/>
+      <text x="161" y="50" fill="#F5C518" font-size="13" font-family="'Press Start 2P',monospace" text-anchor="middle">SACRED</text>
+      <text x="161" y="65" fill="#fff" font-size="12" font-family="'Press Start 2P',monospace" text-anchor="middle">WASTE</text>
+      <circle cx="40"  cy="82" r="14" fill="#2C2C2A" stroke="#1a0a00" stroke-width="3"/>
+      <circle cx="40"  cy="82" r="7"  fill="#888780"/>
+      <circle cx="200" cy="82" r="14" fill="#2C2C2A" stroke="#1a0a00" stroke-width="3"/>
+      <circle cx="200" cy="82" r="7"  fill="#888780"/>
+    </svg>
+  </div>
+
+  <div class="bin-wrap" id="bw-recycle">
+    <svg width="90" height="120" viewBox="0 0 90 120">
+      <rect x="8" y="30" width="74" height="80" rx="4" fill="#1D9E75" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="2" y="22" width="86" height="16" rx="3" fill="#0F6E56" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="18" y="15" width="54" height="12" rx="3" fill="#0F6E56" stroke="#1a0a00" stroke-width="2"/>
+      <line x1="45" y1="38" x2="45" y2="106" stroke="#0F6E56" stroke-width="2"/>
+      <text x="45" y="76" fill="#fff" font-size="22" font-family="sans-serif" text-anchor="middle">♻</text>
+      <text x="45" y="90" fill="#9FE1CB" font-size="5" font-family="'Press Start 2P',monospace" text-anchor="middle">RECYCLE</text>
+    </svg>
+  </div>
+
+  <div class="bin-wrap" id="bw-trash">
+    <svg width="90" height="120" viewBox="0 0 90 120">
+      <rect x="8" y="30" width="74" height="80" rx="4" fill="#888780" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="2" y="22" width="86" height="16" rx="3" fill="#5F5E5A" stroke="#1a0a00" stroke-width="3"/>
+      <rect x="18" y="15" width="54" height="12" rx="3" fill="#5F5E5A" stroke="#1a0a00" stroke-width="2"/>
+      <line x1="25" y1="38" x2="25" y2="106" stroke="#5F5E5A" stroke-width="2"/>
+      <line x1="45" y1="38" x2="45" y2="106" stroke="#5F5E5A" stroke-width="2"/>
+      <line x1="65" y1="38" x2="65" y2="106" stroke="#5F5E5A" stroke-width="2"/>
+      <text x="45" y="76" fill="#fff" font-size="22" font-family="sans-serif" text-anchor="middle">🗑</text>
+      <text x="45" y="90" fill="#D3D1C7" font-size="5" font-family="'Press Start 2P',monospace" text-anchor="middle">TRASH</text>
+    </svg>
+  </div>
+
+  <div id="start-screen">
+    <h1>TRASH SORTER!</h1>
+    <div class="pb-p">DRAG ITEMS TO THE CORRECT BIN BEFORE THE PILE BURIES YOU!</div>
+    <div class="legend">
+      <div class="leg-col">
+        <div class="leg-title rec">♻ RECYCLE</div>
+        <div class="leg-items" id="leg-recycle"></div>
+      </div>
+      <div class="leg-col">
+        <div class="leg-title tra">🗑 TRASH</div>
+        <div class="leg-items" id="leg-trash"></div>
+      </div>
+    </div>
+    <button class="pb-btn" id="start-btn">► PLAY</button>
+  </div>
+  <div id="game-over" style="display:none">
+    <h1 id="go-title">BURIED!!</h1>
+    <div class="pb-p" id="go-msg">SCORE: 0</div>
+    <button class="pb-btn" id="restart-btn">► RETRY</button>
+  </div>
+</div>
+
+<script>
+// ── AUDIO ENGINE ──────────────────────────────────────────────────────────────
+let actx = null;
+function getCtx() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function playSeq(notes) {
+  const ctx = getCtx(); let t = ctx.currentTime;
+  notes.forEach(n => {
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = n.type || 'square';
+    osc.frequency.setValueAtTime(n.freq, t);
+    if (n.slide) osc.frequency.linearRampToValueAtTime(n.slide, t + n.dur);
+    gain.gain.setValueAtTime(n.vol || 0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+    osc.start(t); osc.stop(t + n.dur + 0.01);
+    t += n.dur;
+  });
+}
+function playNoise(dur, vol, filterFreq, delayMs) {
+  setTimeout(() => {
+    const ctx = getCtx();
+    const bufSize = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = filterFreq || 800;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol || 0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    src.start(); src.stop(ctx.currentTime + dur + 0.01);
+  }, delayMs || 0);
+}
+
+// ── Reversing truck beeper ────────────────────────────────────────────────────
+// Plays 4 short sharp sine-wave beeps (like a real reversing vehicle warning)
+// plus a low diesel rumble underneath
+let reverseCancelFlag = false;
+function sfxTruck() {
+  reverseCancelFlag = false;
+  const ctx = getCtx();
+
+  // Low diesel engine rumble — sawtooth burble running under the beeps
+  const rumble = ctx.createOscillator();
+  const rumbleGain = ctx.createGain();
+  rumble.type = 'sawtooth';
+  rumble.frequency.setValueAtTime(52, ctx.currentTime);
+  rumbleGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  rumbleGain.gain.linearRampToValueAtTime(0.10, ctx.currentTime + 0.08);
+  rumbleGain.gain.setValueAtTime(0.10, ctx.currentTime + 0.7);
+  rumbleGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+  rumble.connect(rumbleGain); rumbleGain.connect(ctx.destination);
+  rumble.start(ctx.currentTime); rumble.stop(ctx.currentTime + 0.95);
+
+  // 4 reversing beeps, evenly spaced
+  const beepFreq  = 880;   // sharp high-pitched sine, like real reversing alarms
+  const beepDur   = 0.09;  // short and punchy
+  const beepGap   = 0.18;  // gap between beeps
+  const beepVol   = 0.28;
+  const numBeeps  = 4;
+
+  for (let i = 0; i < numBeeps; i++) {
+    const startOffset = i * (beepDur + beepGap);
+    const beep = ctx.createOscillator();
+    const beepGain = ctx.createGain();
+    beep.type = 'sine';
+    beep.frequency.setValueAtTime(beepFreq, ctx.currentTime + startOffset);
+    beepGain.gain.setValueAtTime(0.0001, ctx.currentTime + startOffset);
+    beepGain.gain.linearRampToValueAtTime(beepVol, ctx.currentTime + startOffset + 0.005);
+    beepGain.gain.setValueAtTime(beepVol, ctx.currentTime + startOffset + beepDur - 0.01);
+    beepGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + startOffset + beepDur);
+    beep.connect(beepGain); beepGain.connect(ctx.destination);
+    beep.start(ctx.currentTime + startOffset);
+    beep.stop(ctx.currentTime + startOffset + beepDur + 0.01);
+  }
+
+  // Metallic clatter when trash dumps (after truck arrives)
+  playNoise(0.13, 0.16, 650, 820);
+}
+
+function sfxCorrect() { playSeq([{freq:523,dur:0.07,type:'square',vol:0.17},{freq:659,dur:0.07,type:'square',vol:0.17},{freq:784,dur:0.13,type:'square',vol:0.20}]); }
+function sfxCombo()   { playSeq([{freq:523,dur:0.06,type:'square',vol:0.17},{freq:659,dur:0.06,type:'square',vol:0.17},{freq:784,dur:0.06,type:'square',vol:0.17},{freq:1047,dur:0.15,type:'square',vol:0.22}]); }
+function sfxWrong()   { playSeq([{freq:220,dur:0.08,type:'square',vol:0.22},{freq:175,dur:0.08,type:'square',vol:0.22},{freq:140,dur:0.14,type:'square',vol:0.25}]); playNoise(0.18,0.11,450); }
+function sfxLoseLife(){ playNoise(0.22,0.28,550); setTimeout(()=>playSeq([{freq:440,dur:0.07,type:'square',vol:0.20},{freq:330,dur:0.07,type:'square',vol:0.20},{freq:220,dur:0.07,type:'square',vol:0.20},{freq:147,dur:0.22,type:'square',vol:0.25,slide:75}]),60); }
+function sfxLevelUp() { playSeq([{freq:392,dur:0.08,type:'square',vol:0.17},{freq:523,dur:0.08,type:'square',vol:0.17},{freq:659,dur:0.08,type:'square',vol:0.17},{freq:784,dur:0.08,type:'square',vol:0.17},{freq:1047,dur:0.22,type:'square',vol:0.22}]); }
+function sfxGameOver(){ playSeq([{freq:392,dur:0.13,type:'square',vol:0.20},{freq:370,dur:0.13,type:'square',vol:0.20},{freq:349,dur:0.13,type:'square',vol:0.20},{freq:294,dur:0.38,type:'square',vol:0.25,slide:185}]); playNoise(0.45,0.20,380,220); }
+function sfxPickup()  { playSeq([{freq:480,dur:0.05,type:'square',vol:0.10}]); }
+function sfxStart()   { playSeq([{freq:330,dur:0.07,type:'square',vol:0.15},{freq:392,dur:0.07,type:'square',vol:0.15},{freq:523,dur:0.07,type:'square',vol:0.15},{freq:659,dur:0.14,type:'square',vol:0.18}]); }
+
+// ── GAME DATA ─────────────────────────────────────────────────────────────────
+const ITEMS = [
+  {r:true,  e:'🍶',  label:'SAKE BTL'},
+  {r:true,  e:'🥤',  label:'PLASTIC CUP'},
+  {r:true,  e:'📰',  label:'NEWSPAPER'},
+  {r:true,  e:'📦',  label:'CARDBOARD'},
+  {r:true,  e:'🥫',  label:'TIN CAN'},
+  {r:true,  e:'🍾',  label:'WINE BTL'},
+  {r:true,  e:'📄',  label:'PAPER'},
+  {r:true,  e:'🫙',  label:'GLASS JAR'},
+  {r:true,  e:'🖼️',  label:'NFT'},
+  {r:true,  e:'🪙',  label:'MEMECOIN'},
+  {r:false, e:'🍌',  label:'BANANA'},
+  {r:false, e:'🍕',  label:'PIZZA CRUST'},
+  {r:false, e:'🚬',  label:'CIGARETTE'},
+  {r:false, e:'🩺',  label:'MED WASTE'},
+  {r:false, e:'🩹',  label:'BANDAGE'},
+  {r:false, e:'🍗',  label:'CHICKEN BONE'},
+  {r:false, e:'☕',  label:'USED CUP'},
+  {r:false, e:'🧦',  label:'OLD SOCK'},
+];
+
+const game           = document.getElementById('game');
+const truck          = document.getElementById('truck-wrap');
+const scoreEl        = document.getElementById('score-display');
+const levelEl        = document.getElementById('level-display');
+const livesEl        = document.getElementById('lives-display');
+const pileBar        = document.getElementById('pile-bar');
+const comboEl        = document.getElementById('combo-pop');
+const startScreen    = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over');
+const goTitle        = document.getElementById('go-title');
+const goMsg          = document.getElementById('go-msg');
+
+ITEMS.forEach(it => {
+  const d = document.createElement('div');
+  d.className = 'leg-item';
+  d.innerHTML = '<span class="leg-emoji">'+it.e+'</span><span class="leg-name">'+it.label+'</span>';
+  document.getElementById(it.r ? 'leg-recycle' : 'leg-trash').appendChild(d);
+});
+
+let items=[], score=0, lives=3, level=1, pileLevel=0;
+let spawnTimer=null, pileTimer=null, combo=0, comboTimer=null;
+let running=false, dragging=null, dragOffX=0, dragOffY=0;
+
+function startGame() {
+  items.forEach(i => i.el && i.el.remove());
+  items=[]; score=0; lives=3; level=1; pileLevel=0; combo=0; running=true;
+  document.querySelectorAll('.flash-ring').forEach(e => e.remove());
+  updateHUD();
+  startScreen.style.display = 'none';
+  gameOverScreen.style.display = 'none';
+  sfxStart();
+  scheduleSpawn();
+  schedulePile();
+}
+
+function scheduleSpawn() {
+  if (!running) return;
+  const delay = Math.max(450, 1500 - level * 110);
+  spawnTimer = setTimeout(() => { spawnItem(); scheduleSpawn(); }, delay);
+}
+
+function schedulePile() {
+  if (!running) return;
+  pileTimer = setInterval(() => {
+    if (!running) return;
+    pileLevel += 1.2 + level * 0.4;
+    if (pileLevel >= 100) endGame();
+    updateHUD();
+  }, 800);
+}
+
+function spawnItem() {
+  if (!running) return;
+  const data = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+  const gw = game.offsetWidth;
+  const el = document.createElement('div');
+  el.className = 'item-sprite';
+  el.innerHTML = '<span class="item-emoji">'+data.e+'</span><span class="item-tag">'+data.label+'</span>';
+  const x = 70 + Math.random() * (gw - 190);
+  const y = 90 + Math.random() * 170;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  game.appendChild(el);
+  const item = {el, r: data.r};
+  items.push(item);
+  el.addEventListener('mousedown', e => startDrag(e, item));
+  el.addEventListener('touchstart', e => startDrag(e, item), {passive:false});
+  sfxTruck();
+  animateTruck();
+}
+
+function animateTruck() {
+  truck.style.transition = 'right 0.45s ease-in';
+  truck.style.right = '0px';
+  setTimeout(() => {
+    truck.style.transition = 'right 0.65s ease-out';
+    truck.style.right = '-260px';
+  }, 700);
+}
+
+function startDrag(e, item) {
+  e.preventDefault();
+  dragging = item;
+  item.el.classList.add('grabbed');
+  sfxPickup();
+  const rect = item.el.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  dragOffX = cx - rect.left;
+  dragOffY = cy - rect.top;
+}
+
+document.addEventListener('mousemove', onMove);
+document.addEventListener('touchmove', onMove, {passive:false});
+function onMove(e) {
+  if (!dragging) return;
+  e.preventDefault();
+  const gr = game.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  dragging.el.style.left = (cx - gr.left - dragOffX) + 'px';
+  dragging.el.style.top  = (cy - gr.top  - dragOffY) + 'px';
+}
+
+document.addEventListener('mouseup', onDrop);
+document.addEventListener('touchend', onDrop);
+function onDrop() {
+  if (!dragging) return;
+  const item = dragging; dragging = null;
+  item.el.classList.remove('grabbed');
+  const rect = item.el.getBoundingClientRect();
+  const cx = rect.left + 20, cy = rect.top + 20;
+  const rr = document.getElementById('bw-recycle').getBoundingClientRect();
+  const tr = document.getElementById('bw-trash').getBoundingClientRect();
+  const inR = cx>=rr.left && cx<=rr.right && cy>=rr.top && cy<=rr.bottom;
+  const inT = cx>=tr.left && cx<=tr.right && cy>=tr.top && cy<=tr.bottom;
+  if (inR || inT) resolveSort(item, (inR && item.r)||(inT && !item.r), inR ? rr : tr);
+}
+
+function resolveSort(item, correct, binRect) {
+  const idx = items.indexOf(item);
+  if (idx > -1) items.splice(idx, 1);
+  item.el.remove();
+  if (correct) {
+    combo++;
+    const pts = 10 * (combo >= 3 ? 3 : combo >= 2 ? 2 : 1);
+    score += pts;
+    pileLevel = Math.max(0, pileLevel - 8);
+    if (combo >= 2) { sfxCombo(); showCombo(combo, pts); }
+    else sfxCorrect();
+    flash(binRect, '#1D9E75');
+    if (score > level * 130) levelUp();
+  } else {
+    combo = 0; lives--;
+    pileLevel = Math.min(100, pileLevel + 16);
+    flash(binRect, '#E24B4A');
+    sfxWrong();
+    if (lives <= 0) endGame();
+    else sfxLoseLife();
+  }
+  updateHUD();
+}
+
+function flash(r, col) {
+  const f = document.createElement('div');
+  f.className = 'flash-ring';
+  const gr = game.getBoundingClientRect();
+  f.style.cssText = 'left:'+(r.left+r.width/2-gr.left-30)+'px;top:'+(r.top+r.height/2-gr.top-30)+'px;width:60px;height:60px;border-color:'+col;
+  game.appendChild(f);
+  setTimeout(() => f.remove(), 500);
+}
+
+function showCombo(c, pts) {
+  clearTimeout(comboTimer);
+  comboEl.textContent = c>=5 ? 'INSANE x'+c+'! +'+pts : c>=3 ? 'HOT x'+c+'! +'+pts : 'COMBO x'+c+'! +'+pts;
+  comboEl.style.opacity = 1;
+  comboTimer = setTimeout(() => comboEl.style.opacity = 0, 1300);
+}
+
+function levelUp() {
+  level++;
+  pileLevel = Math.max(0, pileLevel - 20);
+  sfxLevelUp();
+}
+
+function updateHUD() {
+  scoreEl.textContent = 'SCORE ' + score;
+  levelEl.textContent = 'LVL ' + level;
+  livesEl.textContent = 'LIVES ' + ('♥'.repeat(Math.max(0,lives)) + '♡'.repeat(Math.max(0,3-lives)));
+  pileBar.style.width = Math.min(100, pileLevel) + '%';
+  pileBar.style.background = pileLevel>70 ? '#E24B4A' : pileLevel>40 ? '#EF9F27' : '#1D9E75';
+}
+
+function endGame() {
+  running = false;
+  clearTimeout(spawnTimer);
+  clearInterval(pileTimer);
+  items.forEach(i => i.el && i.el.remove());
+  items = [];
+  sfxGameOver();
+  goTitle.textContent = lives <= 0 ? 'OUT OF LIVES!' : 'BURIED!!';
+  goMsg.textContent = 'SCORE: ' + score + '  LVL ' + level + ' REACHED';
+  setTimeout(() => { gameOverScreen.style.display = 'flex'; }, 700);
+}
+
+document.getElementById('start-btn').onclick = startGame;
+document.getElementById('restart-btn').onclick = startGame;
+</script>
+</body>
+</html>
